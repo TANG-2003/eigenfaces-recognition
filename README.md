@@ -1,4 +1,4 @@
-# Eigenfaces for Recognition (论文复现实验)
+# Eigenfaces for Recognition
 
 本项目是针对经典计算机视觉论文 **Turk & Pentland (1991) "Eigenfaces for Recognition"** 的完整复现与扩展实验系统。通过主成分分析（PCA）构建特征脸空间，并在 **ORL (AT&T)** 和 **Yale** 两个经典人脸数据集上进行了多维度的性能评估。
 
