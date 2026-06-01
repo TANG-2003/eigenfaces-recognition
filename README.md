@@ -14,3 +14,7 @@ eigenfaces-recognition/
   ├── eigenfaces_reproduce.py       # 主程序代码（包含完整的PCA、训练、测试及绘图逻辑）
   ├── results_orl/                 # ORL 数据集实验生成的图表及可视化结果
   └── results_yale/                # Yale 数据集实验生成的图表及可视化结果
+
+---
+
+## 📂 项目文件结构
