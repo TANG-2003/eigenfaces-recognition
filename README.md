@@ -14,16 +14,17 @@ eigenfaces-recognition/
   ├── eigenfaces_reproduce.py       # 主程序代码（包含完整的PCA、训练、测试及绘图逻辑）
   ├── results_orl/                 # ORL 数据集实验生成的图表及可视化结果
   └── results_yale/                # Yale 数据集实验生成的图表及可视化结果
+```
 
-##📊 评测数据集配置
+## 📊 评测数据集配置
 
 ```text
 - ORL/AT&T Face Database：40人×10张，用于完整算法性能分析
   下载：https://cam-orl.co.uk/facedatabase.html
 - Yale Face Database：15人×11种条件，用于Figure 9光照实验复现
   下载：http://vision.ucsd.edu/content/yale-face-database
-
-## 实验结果
+```
+## 📈 核心实验结果
 ### ORL数据集（7组实验）
 | 实验 | 内容 | 关键结果 |
 |------|------|---------|
@@ -36,10 +37,5 @@ eigenfaces-recognition/
 | Exp7 | 数据库规模 | 人数↑准确率↓ |
 | Exp8 | 交叉验证 | 结果稳定可靠 |
 
-### Yale数据集（Figure 9复现）
+### Yale数据集
 光照变化对识别影响显著，验证论文核心结论。
-
-## 参考论文
-Turk, M., & Pentland, A. (1991). 
-Eigenfaces for recognition. 
-Journal of cognitive neuroscience, 3(1), 71-86.
