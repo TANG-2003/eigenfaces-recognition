@@ -1,36 +1,9 @@
-"""
-Eigenfaces for Recognition - 完整实验复现
-===========================================
-论文: Turk & Pentland (1991) "Eigenfaces for Recognition"
-
-数据集1: ORL/AT&T Face Database
-  路径: D:\桌面\task\WORK\FACE\att_faces
-  规模: 40人 × 10张 = 400张，文件格式: 01.png ~ 10.png
-
-数据集2: Yale Face Database
-  路径: D:\桌面\task\WORK\FACE\archive\data
-  规模: 15人 × 11种条件 = 165张
-  条件: normal, centerlight, leftlight, rightlight,
-        happy, sad, sleepy, surprised, wink, glasses, noglasses
-
-实验安排:
-  ORL  7组: Exp0~Exp5, Exp7, Exp8（去掉Exp6阈值实验）
-  Yale 8组: Exp0~Exp8 + Figure 9复现
-
-结果输出:
-  D:\桌面\task\WORK\FACE\results_orl\    ORL实验结果
-  D:\桌面\task\WORK\FACE\results_yale\   Yale实验结果
-"""
-
 import os
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
 from matplotlib.patches import Patch
 
-# ============================================================
-# 全局配置
-# ============================================================
 ORL_DATA_DIR   = r"D:\桌面\task\WORK\FACE\att_faces"
 YALE_DATA_DIR  = r"D:\桌面\task\WORK\FACE\archive\data"
 ORL_OUTPUT     = r"D:\桌面\task\WORK\FACE\results_orl"
@@ -45,15 +18,10 @@ YALE_LIGHTING   = ['centerlight', 'leftlight', 'rightlight']
 YALE_EXPRESSION = ['happy', 'sad', 'sleepy', 'surprised', 'wink']
 YALE_GLASSES    = ['glasses', 'noglasses']
 YALE_NORMAL     = 'normal'
-YALE_ALL_CONDS  = ([YALE_NORMAL] + YALE_LIGHTING +
-                   YALE_EXPRESSION + YALE_GLASSES)
+YALE_ALL_CONDS  = ([YALE_NORMAL] + YALE_LIGHTING + YALE_EXPRESSION + YALE_GLASSES)
 
 plt.rcParams['font.family']        = ['Microsoft YaHei', 'SimHei', 'DejaVu Sans']
 plt.rcParams['axes.unicode_minus'] = False
-
-# ============================================================
-# 通用工具
-# ============================================================
 
 def ensure_dir(p):
     os.makedirs(p, exist_ok=True)
@@ -69,20 +37,8 @@ def save_fig(fig, path):
     plt.close(fig)
     print(f"    [保存] {os.path.basename(path)}")
 
-# ============================================================
-# Eigenfaces 核心算法
-# ============================================================
 
 class Eigenfaces:
-    """
-    手动实现 Eigenfaces 算法，完全遵循论文推导：
-      1. 平均脸 Ψ
-      2. 差值矩阵 A = [Φ1 Φ2 ... ΦM]
-      3. 小协方差矩阵 L = AᵀA (M×M)
-      4. 特征向量 → 特征脸 u = Av
-      5. 投影 Ω = Uᵀ(Γ-Ψ)
-      6. 最近邻识别（欧氏距离）
-    """
     def __init__(self, n_components=None):
         self.n_components = n_components
         self.mean_face    = None
@@ -94,8 +50,8 @@ class Eigenfaces:
     def fit(self, X_train, y_train):
         M, D = X_train.shape
         self.mean_face = X_train.mean(axis=0)
-        A = (X_train - self.mean_face).T          # (D, M)
-        L = A.T @ A                                # (M, M)
+        A = (X_train - self.mean_face).T         
+        L = A.T @ A                                
         eigenvalues, eigenvectors = np.linalg.eigh(L)
         order        = np.argsort(eigenvalues)[::-1]
         eigenvalues  = eigenvalues[order]
@@ -110,32 +66,20 @@ class Eigenfaces:
         self.train_proj   = self._project(X_train)
         self.train_labels = y_train.copy()
         return self
-
     def _project(self, X):
         return (X - self.mean_face) @ self.eigenfaces
-
     def predict(self, X_test):
         proj  = self._project(X_test)
-        dists = np.sum(
-            (proj[:, None, :] - self.train_proj[None, :, :]) ** 2,
-            axis=2)
+        dists = np.sum((proj[:, None, :] - self.train_proj[None, :, :]) ** 2,axis=2)
         return self.train_labels[np.argmin(dists, axis=1)]
-
     def accuracy(self, X_test, y_test):
         return float(np.mean(self.predict(X_test) == y_test))
-
     def reconstruct(self, X):
         return self.mean_face + self._project(X) @ self.eigenfaces.T
-
     def distance_from_face_space(self, X):
         diff  = X - self.mean_face
         recon = self._project(X) @ self.eigenfaces.T
         return np.sum((diff - recon) ** 2, axis=1)
-
-
-# ============================================================
-# ORL 数据加载
-# ============================================================
 
 def load_orl(data_dir=ORL_DATA_DIR, img_size=ORL_IMG_SIZE):
     images, labels = [], []
@@ -158,15 +102,7 @@ def orl_split(images, labels, n_train=5):
     return (images[tr_idx], labels[tr_idx],
             images[te_idx],  labels[te_idx])
 
-
-# ============================================================
-# Yale 数据加载
-# ============================================================
-
 def load_yale(data_dir=YALE_DATA_DIR, img_size=YALE_IMG_SIZE):
-    """
-    返回 data[subject_id][condition] = flattened array
-    """
     data = {}
     for fname in sorted(os.listdir(data_dir)):
         parts = fname.split('.')
@@ -188,12 +124,6 @@ def load_yale(data_dir=YALE_DATA_DIR, img_size=YALE_IMG_SIZE):
     return data, sorted(data.keys())
 
 def yale_build(data, subjects, train_conds, test_conds):
-    """
-    为每个 subject 分别构建训练/测试，保证每人最多
-    贡献 len(train_conds) 训练样本和 len(test_conds) 测试样本，
-    只使用同时拥有两类条件的 subject。
-    返回 X_train, y_train, X_test, y_test, n_valid_subjects
-    """
     valid = [s for s in subjects
              if any(c in data[s] for c in train_conds)
              and any(c in data[s] for c in test_conds)]
@@ -207,13 +137,7 @@ def yale_build(data, subjects, train_conds, test_conds):
         for c in test_conds:
             if c in data[s]:
                 Xte.append(data[s][c]); yte.append(l)
-    return (np.array(Xtr), np.array(ytr),
-            np.array(Xte),  np.array(yte), len(valid))
-
-
-# ============================================================
-# 通用可视化函数（ORL & Yale 共用）
-# ============================================================
+    return (np.array(Xtr), np.array(ytr), np.array(Xte),  np.array(yte), len(valid))
 
 def vis_mean_face(mean_face, img_size, out_dir, prefix=''):
     h, w = img_size[1], img_size[0]
@@ -304,13 +228,7 @@ def vis_accuracy_vs_trainsize(sizes, accs, out_dir, prefix=''):
     plt.tight_layout()
     save_fig(fig, os.path.join(out_dir, f'{prefix}acc_vs_trainsize.png'))
 
-
-# ============================================================
-# ORL 专用实验
-# ============================================================
-
 def orl_exp0_vis(images, labels, out_dir):
-    """Exp0: 平均脸 + 特征脸 + 重建 + 混淆矩阵"""
     print("\n  [ORL Exp0] 基础可视化")
     Xtr, ytr, Xte, yte = orl_split(images, labels, n_train=5)
     model = Eigenfaces(n_components=40)
@@ -323,7 +241,6 @@ def orl_exp0_vis(images, labels, out_dir):
                        subtitles=[f'P{yte[i]+1}' for i in range(8)],
                        prefix='orl_')
 
-    # 混淆矩阵
     preds = model.predict(Xte)
     acc   = model.accuracy(Xte, yte)
     n     = min(20, ORL_N_SUBJ)
@@ -343,12 +260,10 @@ def orl_exp0_vis(images, labels, out_dir):
     ax.set_yticklabels([str(i+1) for i in range(n)], fontsize=7)
     plt.tight_layout()
     save_fig(fig, os.path.join(out_dir, 'orl_confusion_matrix.png'))
-
     print(f"    基础准确率 (K=40, 5张/人): {acc*100:.2f}%")
     return model, acc
 
 def orl_exp1_acc_vs_k(images, labels, out_dir):
-    """Exp1: 准确率 vs K值"""
     print("\n  [ORL Exp1] 准确率 vs K值")
     Xtr, ytr, Xte, yte = orl_split(images, labels, n_train=5)
     k_values = list(range(1, 41))
@@ -365,7 +280,6 @@ def orl_exp1_acc_vs_k(images, labels, out_dir):
     return k_values, accs
 
 def orl_exp2_acc_vs_trainsize(images, labels, out_dir):
-    """Exp2: 准确率 vs 训练集大小"""
     print("\n  [ORL Exp2] 准确率 vs 训练集大小")
     sizes = list(range(1, 10))
     accs  = []
@@ -383,7 +297,6 @@ def orl_exp2_acc_vs_trainsize(images, labels, out_dir):
     return sizes, accs
 
 def orl_exp3_multiline(images, labels, out_dir):
-    """Exp3: 不同训练量下 K vs 准确率 多曲线"""
     print("\n  [ORL Exp3] 多曲线对比 (K × 训练量)")
     fig, ax = plt.subplots(figsize=(10, 6))
     colors  = ['blue', 'green', 'red', 'orange']
@@ -411,7 +324,6 @@ def orl_exp3_multiline(images, labels, out_dir):
     save_fig(fig, os.path.join(out_dir, 'orl_exp3_multiline.png'))
 
 def orl_exp4_reconstruction_mse(images, labels, out_dir):
-    """Exp4: 重建误差 MSE vs K"""
     print("\n  [ORL Exp4] 重建误差 MSE vs K")
     Xtr, ytr, Xte, yte = orl_split(images, labels, n_train=5)
     k_list = [1, 3, 5, 10, 20, 30, 40, 60, 80, 100, 150, 200]
@@ -425,7 +337,6 @@ def orl_exp4_reconstruction_mse(images, labels, out_dir):
         mse_list.append(mse)
         print(f"    K={k:4d} -> MSE={mse:.2f}")
 
-    # MSE折线图
     fig, ax = plt.subplots(figsize=(9, 5))
     ax.plot(k_list, mse_list, 'm-D', linewidth=2, markersize=7)
     ax.set_xlabel('Number of Eigenfaces K', fontsize=12)
@@ -436,7 +347,6 @@ def orl_exp4_reconstruction_mse(images, labels, out_dir):
     plt.tight_layout()
     save_fig(fig, os.path.join(out_dir, 'orl_exp4_mse.png'))
 
-    # 不同K重建效果演示
     h, w     = ORL_IMG_SIZE[1], ORL_IMG_SIZE[0]
     k_demo   = [1, 5, 10, 20, 40]
     sample   = Xte[0:1]
@@ -457,15 +367,13 @@ def orl_exp4_reconstruction_mse(images, labels, out_dir):
     save_fig(fig, os.path.join(out_dir, 'orl_exp4_recon_demo.png'))
 
 def orl_exp5_face_vs_nonface(images, labels, out_dir):
-    """Exp5: 人脸 vs 非人脸距离判别（对应论文Figure 4）"""
     print("\n  [ORL Exp5] 人脸 vs 非人脸距离判别")
     Xtr, ytr, Xte, yte = orl_split(images, labels, n_train=5)
     model = Eigenfaces(n_components=20)
     model.fit(Xtr, ytr)
 
     np.random.seed(42)
-    non_faces = np.random.randint(
-        0, 256, size=(20, images.shape[1])).astype(np.float64)
+    non_faces = np.random.randint(0, 256, size=(20, images.shape[1])).astype(np.float64)
 
     dist_face    = model.distance_from_face_space(Xte[:20])
     dist_nonface = model.distance_from_face_space(non_faces)
@@ -494,7 +402,6 @@ def orl_exp5_face_vs_nonface(images, labels, out_dir):
     plt.tight_layout()
     save_fig(fig, os.path.join(out_dir, 'orl_exp5_face_vs_nonface.png'))
 
-    # 展示人脸空间距离由小到大的图像（对应论文Figure 4的三张图）
     h, w  = ORL_IMG_SIZE[1], ORL_IMG_SIZE[0]
     all_X = np.vstack([Xte[:10], non_faces[:3]])
     dists = model.distance_from_face_space(all_X)
@@ -515,7 +422,6 @@ def orl_exp5_face_vs_nonface(images, labels, out_dir):
     save_fig(fig, os.path.join(out_dir, 'orl_exp5_distance_sorted.png'))
 
 def orl_exp7_scale(images, labels, out_dir):
-    """Exp7: 数据库规模 vs 准确率"""
     print("\n  [ORL Exp7] 数据库规模 vs 准确率")
     subj_counts = [5, 10, 15, 20, 25, 30, 35, 40]
     accs = []
@@ -557,7 +463,6 @@ def orl_exp7_scale(images, labels, out_dir):
     return subj_counts, accs
 
 def orl_exp8_cross_val(images, labels, out_dir):
-    """Exp8: 交叉验证稳定性"""
     print("\n  [ORL Exp8] 交叉验证稳定性")
     configs = [(1,'1test/9train'),(2,'2test/8train'),(3,'3test/7train'),
                (4,'4test/6train'),(5,'5test/5train'),(6,'6test/4train'),
@@ -593,7 +498,6 @@ def orl_exp8_cross_val(images, labels, out_dir):
     save_fig(fig, os.path.join(out_dir, 'orl_exp8_crossval.png'))
 
 def orl_eigenvalue_variance(images, labels, out_dir):
-    """特征值方差贡献图"""
     print("\n  [ORL] 特征值方差贡献")
     Xtr, ytr, _, _ = orl_split(images, labels, n_train=5)
     model = Eigenfaces(n_components=40)
@@ -629,13 +533,7 @@ def orl_eigenvalue_variance(images, labels, out_dir):
     print(f"    K={k90} 达到90%方差，K={k95} 达到95%方差")
     return k90, k95
 
-
-# ============================================================
-# Yale 专用实验
-# ============================================================
-
 def yale_exp0_vis(data, subjects, out_dir):
-    """Yale Exp0: 平均脸 + 特征脸 + 重建"""
     print("\n  [Yale Exp0] 基础可视化")
     Xtr, ytr, Xte, yte, ns = yale_build(
         data, subjects,
@@ -643,15 +541,10 @@ def yale_exp0_vis(data, subjects, out_dir):
         test_conds=YALE_LIGHTING + YALE_EXPRESSION)
     model = Eigenfaces(n_components=min(15, len(Xtr)))
     model.fit(Xtr, ytr)
-
     vis_mean_face(model.mean_face, YALE_IMG_SIZE, out_dir, 'yale_')
-    vis_eigenfaces(model.eigenfaces, YALE_IMG_SIZE, out_dir,
-                   n_show=15, prefix='yale_')
-
-    # 重建图：每种条件各取1张
+    vis_eigenfaces(model.eigenfaces, YALE_IMG_SIZE, out_dir, n_show=15, prefix='yale_')
     sample_imgs, sample_labels = [], []
-    show_conds = [YALE_NORMAL, 'centerlight', 'happy',
-                  'sad', 'glasses', 'wink']
+    show_conds = [YALE_NORMAL, 'centerlight', 'happy', 'sad', 'glasses', 'wink']
     for cond in show_conds:
         for s in subjects[:1]:
             if cond in data[s]:
@@ -667,7 +560,6 @@ def yale_exp0_vis(data, subjects, out_dir):
     return model
 
 def yale_exp1_acc_vs_k(data, subjects, out_dir):
-    """Yale Exp1: 准确率 vs K值"""
     print("\n  [Yale Exp1] 准确率 vs K值")
     Xtr, ytr, Xte, yte, ns = yale_build(
         data, subjects,
@@ -687,11 +579,9 @@ def yale_exp1_acc_vs_k(data, subjects, out_dir):
     return k_values, accs
 
 def yale_exp2_single_condition(data, subjects, out_dir):
-    """Yale Exp2: 各条件单独准确率柱状图"""
     print("\n  [Yale Exp2] 各条件单独准确率")
     results = []
-    all_test_conds = ([YALE_NORMAL] + YALE_LIGHTING +
-                      YALE_EXPRESSION + YALE_GLASSES)
+    all_test_conds = ([YALE_NORMAL] + YALE_LIGHTING + YALE_EXPRESSION + YALE_GLASSES)
     for cond in all_test_conds:
         Xtr, ytr, Xte, yte, ns = yale_build(
             data, subjects,
@@ -732,22 +622,16 @@ def yale_exp2_single_condition(data, subjects, out_dir):
         Patch(facecolor='#4CAF50', label='Normal'),
         Patch(facecolor='#2196F3', label='Lighting (光照)'),
         Patch(facecolor='#FF9800', label='Expression (表情)'),
-        Patch(facecolor='#9C27B0', label='Glasses (眼镜)'),
-    ]
+        Patch(facecolor='#9C27B0', label='Glasses (眼镜)'),]
     ax.legend(handles=legend_els, fontsize=10, loc='upper right')
     plt.tight_layout()
     save_fig(fig, os.path.join(out_dir, 'yale_exp2_single_cond.png'))
     return results
 
 def yale_exp3_figure9(data, subjects, out_dir):
-    """
-    Yale Exp3: 复现论文 Figure 9 的8个子图
-    修复：每个条件分开计算，Y轴统一用 correct/n_subjects
-    """
     print("\n  [Yale Exp3] Figure 9 复现（8个子图）")
     K  = 10
     ns = len(subjects)
-
     def run_one(train_c, test_c, label):
         Xtr, ytr, Xte, yte, n_valid = yale_build(
             data, subjects, train_c, test_c)
@@ -768,7 +652,6 @@ def yale_exp3_figure9(data, subjects, out_dir):
         print(f"      {label}: {correct}/{n_valid} ({acc*100:.1f}%)")
         return correct, acc
 
-    # ── 8组实验定义 ──
     experiments = {
         'a': {
             'title': 'Lighting Variation\n(光照变化)',
@@ -776,15 +659,13 @@ def yale_exp3_figure9(data, subjects, out_dir):
                 (0, [YALE_NORMAL], [YALE_NORMAL],       'no change'),
                 (1, [YALE_NORMAL], ['centerlight'],      'centerlight'),
                 (2, [YALE_NORMAL], ['leftlight'],        'leftlight'),
-                (3, [YALE_NORMAL], ['rightlight'],       'rightlight'),
-            ]},
+                (3, [YALE_NORMAL], ['rightlight'],       'rightlight'),]},
         'b': {
             'title': 'Glasses Variation\n(眼镜变化/替代尺度)',
             'steps': [
                 (0, [YALE_NORMAL], [YALE_NORMAL],       'no change'),
                 (1, [YALE_NORMAL], ['noglasses'],        'noglasses'),
-                (2, [YALE_NORMAL], ['glasses'],          'glasses'),
-            ]},
+                (2, [YALE_NORMAL], ['glasses'],          'glasses'),]},
         'c': {
             'title': 'Expression Variation\n(表情变化)',
             'steps': [
@@ -793,8 +674,7 @@ def yale_exp3_figure9(data, subjects, out_dir):
                 (2, [YALE_NORMAL], ['sad'],              'sad'),
                 (3, [YALE_NORMAL], ['sleepy'],           'sleepy'),
                 (4, [YALE_NORMAL], ['surprised'],        'surprised'),
-                (5, [YALE_NORMAL], ['wink'],             'wink'),
-            ]},
+                (5, [YALE_NORMAL], ['wink'],             'wink'),]},
         'd': {
             'title': 'Expression + Lighting\n(表情+光照)',
             'steps': [
@@ -802,8 +682,7 @@ def yale_exp3_figure9(data, subjects, out_dir):
                 (1, [YALE_NORMAL], ['happy'],                    'expr only'),
                 (2, [YALE_NORMAL], ['centerlight'],             'light only'),
                 (3, [YALE_NORMAL], ['happy'],                    'expr(ref)'),
-                (4, [YALE_NORMAL], ['centerlight'],             'light(ref)'),
-            ]},
+                (4, [YALE_NORMAL], ['centerlight'],             'light(ref)'),]},
         'e': {
             'title': 'Expression + Glasses #1\n(表情+眼镜 #1)',
             'steps': [
@@ -811,8 +690,7 @@ def yale_exp3_figure9(data, subjects, out_dir):
                 (1, [YALE_NORMAL], ['happy'],            'happy'),
                 (2, [YALE_NORMAL], ['glasses'],          'glasses'),
                 (3, [YALE_NORMAL], ['surprised'],        'surprised'),
-                (4, [YALE_NORMAL], ['noglasses'],        'noglasses'),
-            ]},
+                (4, [YALE_NORMAL], ['noglasses'],        'noglasses'),]},
         'f': {
             'title': 'Expression + Glasses #2\n(表情+眼镜 #2)',
             'steps': [
@@ -820,8 +698,7 @@ def yale_exp3_figure9(data, subjects, out_dir):
                 (1, [YALE_NORMAL], ['wink'],             'wink'),
                 (2, [YALE_NORMAL], ['noglasses'],        'noglasses'),
                 (3, [YALE_NORMAL], ['sad'],              'sad'),
-                (4, [YALE_NORMAL], ['glasses'],          'glasses'),
-            ]},
+                (4, [YALE_NORMAL], ['glasses'],          'glasses'),]},
         'g': {
             'title': 'Glasses + Lighting\n(眼镜+光照)',
             'steps': [
@@ -829,8 +706,7 @@ def yale_exp3_figure9(data, subjects, out_dir):
                 (1, [YALE_NORMAL], ['leftlight'],        'leftlight'),
                 (2, [YALE_NORMAL], ['glasses'],          'glasses'),
                 (3, [YALE_NORMAL], ['rightlight'],       'rightlight'),
-                (4, [YALE_NORMAL], ['noglasses'],        'noglasses'),
-            ]},
+                (4, [YALE_NORMAL], ['noglasses'],        'noglasses'),]},
         'h': {
             'title': 'Glasses + Lighting #2\n(眼镜+光照 #2)',
             'steps': [
@@ -838,9 +714,7 @@ def yale_exp3_figure9(data, subjects, out_dir):
                 (1, [YALE_NORMAL], ['centerlight'],      'centerlight'),
                 (2, [YALE_NORMAL], ['noglasses'],        'noglasses'),
                 (3, [YALE_NORMAL], ['rightlight'],       'rightlight'),
-                (4, [YALE_NORMAL], ['glasses'],          'glasses'),
-            ]},
-    }
+                (4, [YALE_NORMAL], ['glasses'],          'glasses'),]},
 
     fig9_data = {}
     for key, exp in experiments.items():
@@ -851,11 +725,9 @@ def yale_exp3_figure9(data, subjects, out_dir):
             xs.append(lvl); ys.append(correct)
         fig9_data[key] = {'x': xs, 'y': ys, 'title': exp['title']}
 
-    # ── 绘制 Figure 9 风格大图 ──
     fig, axes = plt.subplots(2, 4, figsize=(16, 8))
     axes = axes.flatten()
     labels_abc = ['(a)','(b)','(c)','(d)','(e)','(f)','(g)','(h)']
-
     for i, (key, res) in enumerate(fig9_data.items()):
         ax = axes[i]
         xs, ys = res['x'], res['y']
@@ -868,15 +740,12 @@ def yale_exp3_figure9(data, subjects, out_dir):
         ax.set_title(f"{labels_abc[i]} {res['title']}",
                      fontsize=8, fontweight='bold')
         ax.grid(True, alpha=0.3)
-        # 标注峰值
         peak = int(np.argmax(ys))
         ax.annotate(f'{ys[peak]}/{ns}',
                     xy=(xs[peak], ys[peak]),
                     xytext=(xs[peak]+0.15, ys[peak]-1.5),
                     fontsize=8, color='red',
-                    arrowprops=dict(arrowstyle='->', color='red',
-                                    lw=1))
-
+                    arrowprops=dict(arrowstyle='->', color='red', lw=1))
     fig.suptitle(
         'Figure 9 Reproduction: Recognition Performance under '
         'Varying Conditions\n'
@@ -884,7 +753,6 @@ def yale_exp3_figure9(data, subjects, out_dir):
         fontsize=12, fontweight='bold', y=1.01)
     plt.tight_layout()
     save_fig(fig, os.path.join(out_dir, 'yale_figure9_reproduction.png'))
-
     print(f"\n    Figure 9 各子图峰值/最低值:")
     for key, res in fig9_data.items():
         if res['y']:
@@ -894,7 +762,6 @@ def yale_exp3_figure9(data, subjects, out_dir):
     return fig9_data
 
 def yale_exp4_lighting_detail(data, subjects, out_dir):
-    """Yale Exp4: 光照变化详细分析"""
     print("\n  [Yale Exp4] 光照变化详细分析")
     lighting_conds = [YALE_NORMAL] + YALE_LIGHTING
     names, accs = [], []
@@ -910,7 +777,6 @@ def yale_exp4_lighting_detail(data, subjects, out_dir):
         names.append(cond); accs.append(acc)
         print(f"    normal → {cond}: {acc*100:.1f}%")
 
-    # 同时展示光照图像样本
     h, w = YALE_IMG_SIZE[1], YALE_IMG_SIZE[0]
     sample_subj = subjects[0]
     fig, axes = plt.subplots(2, len(lighting_conds),
@@ -936,7 +802,6 @@ def yale_exp4_lighting_detail(data, subjects, out_dir):
     save_fig(fig, os.path.join(out_dir, 'yale_exp4_lighting.png'))
 
 def yale_exp5_expression_detail(data, subjects, out_dir):
-    """Yale Exp5: 表情变化详细分析"""
     print("\n  [Yale Exp5] 表情变化详细分析")
     expr_conds = [YALE_NORMAL] + YALE_EXPRESSION
     names, accs = [], []
@@ -951,7 +816,6 @@ def yale_exp5_expression_detail(data, subjects, out_dir):
         acc = m.accuracy(Xte, yte)
         names.append(cond); accs.append(acc)
         print(f"    normal → {cond}: {acc*100:.1f}%")
-
     h, w = YALE_IMG_SIZE[1], YALE_IMG_SIZE[0]
     sample_subj = subjects[0]
     fig, axes = plt.subplots(2, len(expr_conds),
@@ -968,8 +832,7 @@ def yale_exp5_expression_detail(data, subjects, out_dir):
         axes[1, i].set_ylabel('Acc(%)' if i == 0 else '')
         axes[1, i].tick_params(labelbottom=False)
         if i < len(accs):
-            axes[1, i].text(0, accs[i]*100+2,
-                            f'{accs[i]*100:.1f}%', ha='center', fontsize=9)
+            axes[1, i].text(0, accs[i]*100+2, f'{accs[i]*100:.1f}%', ha='center', fontsize=9)
     fig.suptitle('Expression Variation Analysis (表情变化详细分析)\n'
                  'Top: Sample Images, Bottom: Accuracy',
                  fontsize=11, fontweight='bold')
@@ -977,7 +840,6 @@ def yale_exp5_expression_detail(data, subjects, out_dir):
     save_fig(fig, os.path.join(out_dir, 'yale_exp5_expression.png'))
 
 def yale_exp6_glasses(data, subjects, out_dir):
-    """Yale Exp6: 眼镜变化分析（替代尺度变化）"""
     print("\n  [Yale Exp6] 眼镜变化分析")
     glass_conds = [YALE_NORMAL] + YALE_GLASSES
     names, accs = [], []
@@ -1009,8 +871,7 @@ def yale_exp6_glasses(data, subjects, out_dir):
         axes[1, i].set_ylabel('Acc(%)' if i == 0 else '')
         axes[1, i].tick_params(labelbottom=False)
         if i < len(accs):
-            axes[1, i].text(0, accs[i]*100+2,
-                            f'{accs[i]*100:.1f}%', ha='center', fontsize=10)
+            axes[1, i].text(0, accs[i]*100+2, f'{accs[i]*100:.1f}%', ha='center', fontsize=10)
     fig.suptitle('Glasses Variation (眼镜变化分析，替代论文尺度变化)\n'
                  'Top: Sample Images, Bottom: Accuracy',
                  fontsize=11, fontweight='bold')
@@ -1018,7 +879,6 @@ def yale_exp6_glasses(data, subjects, out_dir):
     save_fig(fig, os.path.join(out_dir, 'yale_exp6_glasses.png'))
 
 def yale_exp7_combo(data, subjects, out_dir):
-    """Yale Exp7: 组合条件分析"""
     print("\n  [Yale Exp7] 组合条件分析")
     combos = [
         ('normal',               [YALE_NORMAL],          [YALE_NORMAL]),
@@ -1032,8 +892,7 @@ def yale_exp7_combo(data, subjects, out_dir):
         ('expr+glass',           [YALE_NORMAL],
          ['happy', 'glasses']),
         ('all three',            [YALE_NORMAL],
-         ['centerlight', 'happy', 'glasses']),
-    ]
+         ['centerlight', 'happy', 'glasses']),]
     names, accs = [], []
     for label, tr_c, te_c in combos:
         Xtr, ytr, Xte, yte, ns = yale_build(
@@ -1042,7 +901,6 @@ def yale_exp7_combo(data, subjects, out_dir):
             names.append(label); accs.append(0); continue
         m = Eigenfaces(n_components=min(10, len(Xtr)))
         m.fit(Xtr, ytr)
-        # 每个subject取第一张测试图
         preds = m.predict(Xte)
         seen  = set(); correct = 0
         for pred, true in zip(preds, yte):
@@ -1053,7 +911,6 @@ def yale_exp7_combo(data, subjects, out_dir):
         names.append(label); accs.append(acc)
         print(f"    {label.replace(chr(10),' '):20s}: "
               f"{correct}/{ns} ({acc*100:.1f}%)")
-
     fig, ax = plt.subplots(figsize=(12, 5))
     colors = plt.cm.Set2(np.linspace(0, 1, len(names)))
     bars   = ax.bar(range(len(names)), [a*100 for a in accs],
@@ -1072,12 +929,10 @@ def yale_exp7_combo(data, subjects, out_dir):
                 fontsize=9, fontweight='bold')
     plt.tight_layout()
     save_fig(fig, os.path.join(out_dir, 'yale_exp7_combo.png'))
-
 def yale_exp8_orl_vs_yale(orl_acc_baseline, yale_single_results, out_dir):
     """Yale Exp8: ORL vs Yale 跨数据集对比总结"""
     print("\n  [Yale Exp8] ORL vs Yale 对比总结")
 
-    # 提取Yale各类条件准确率
     yale_light_acc = np.mean([r['acc'] for r in yale_single_results
                               if r['cond'] in YALE_LIGHTING]) * 100
     yale_expr_acc  = np.mean([r['acc'] for r in yale_single_results
@@ -1128,22 +983,14 @@ def yale_exp8_orl_vs_yale(orl_acc_baseline, yale_single_results, out_dir):
     save_fig(fig, os.path.join(out_dir, 'yale_exp8_orl_vs_yale.png'))
 
 
-# ============================================================
-# 主函数
-# ============================================================
-
 def main():
     ensure_dir(ORL_OUTPUT)
     ensure_dir(YALE_OUTPUT)
-
     print("=" * 65)
     print("  Eigenfaces for Recognition - 完整实验")
     print("  ORL: 7组实验 | Yale: 8组实验 + Figure 9复现")
     print("=" * 65)
 
-    # ================================================================
-    # Part 1: ORL 数据集实验
-    # ================================================================
     print("\n" + "=" * 65)
     print("  PART 1 — ORL/AT&T Face Database")
     print("=" * 65)
@@ -1162,9 +1009,6 @@ def main():
     orl_exp8_cross_val(orl_images, orl_labels, ORL_OUTPUT)
     k90, k95 = orl_eigenvalue_variance(orl_images, orl_labels, ORL_OUTPUT)
 
-    # ================================================================
-    # Part 2: Yale 数据集实验
-    # ================================================================
     print("\n" + "=" * 65)
     print("  PART 2 — Yale Face Database")
     print("=" * 65)
@@ -1172,7 +1016,6 @@ def main():
     yale_data, yale_subjects = load_yale()
     print(f"  共 {len(yale_subjects)} 人，"
           f"{len(YALE_ALL_CONDS)} 种条件")
-
     yale_exp0_vis(yale_data, yale_subjects, YALE_OUTPUT)
     yale_exp1_acc_vs_k(yale_data, yale_subjects, YALE_OUTPUT)
     yale_single = yale_exp2_single_condition(
@@ -1184,9 +1027,6 @@ def main():
     yale_exp7_combo(yale_data, yale_subjects, YALE_OUTPUT)
     yale_exp8_orl_vs_yale(orl_base_acc, yale_single, YALE_OUTPUT)
 
-    # ================================================================
-    # 最终汇总
-    # ================================================================
     print("\n" + "=" * 65)
     print("  全部实验完成！")
     print("=" * 65)
